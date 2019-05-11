@@ -1,0 +1,207 @@
+﻿#pragma kernel Main
+
+// --- TYPES ---
+
+struct Ray {
+    float3 origin;
+    float3 direction;
+};
+
+struct RayHit {
+    float distance;
+    float3 normal;
+    float3 albedo;
+};
+
+// --- INPUT ---
+
+RWTexture2D<float4> result;
+float currentTime;
+float4 groundColor;
+float4 skyColor;
+
+float4x4 cameraToWorld;
+float4x4 cameraInverseProjection;
+
+int numberOfMarchingIterations;
+
+// --- CONSTANTS ---
+
+static const float PI = 3.14159265f;
+static const float E = 2.71828182845904523536028747135266249;
+static const float INFINITY = 1.#INF;
+
+// --- HELPERS ---
+
+Ray CreateRay(float3 origin, float3 direction) {
+    Ray ray;
+    ray.origin = origin;
+    ray.direction = direction;
+    return ray;
+}
+
+Ray CreateCameraRay(float2 uv) {
+    // transform the camera origin to world space by multiplying a (0, 0, 0)
+    // vector with the cameraToWorld matrix
+    float3 origin = mul(cameraToWorld, float4(0.0f, 0.0f, 0.0f, 1.0f)).xyz;
+    
+    // convert the view position (uv) back to model space (I think it's model space...)
+    float3 direction = mul(cameraInverseProjection, float4(uv, 0.0f, 1.0f)).xyz;
+
+    // transform the direction from camera to world space and normalize
+    direction = mul(cameraToWorld, float4(direction, 0.0f)).xyz;
+    direction = normalize(direction);
+
+    // make a ray
+    return CreateRay(origin, direction);
+}
+
+RayHit CreateRayHit() {
+    RayHit hit;
+    hit.distance = INFINITY;
+    hit.normal = float3(0.0f, 0.0f, 0.0f);
+    hit.albedo = float3(0.0f, 0.0f, 0.0f);
+    return hit;
+}
+
+// --- DISTANCE FUNCTIONS ---
+// http://iquilezles.org/www/articles/distfunctions/distfunctions.htm
+
+float SphereDistance(float3 position, float3 origin, float radius) {
+    return length(position - origin) - radius;
+}
+
+float PillarDistance(float3 position, float height, float radius) {
+    position.y -= clamp(position.y, 0.0f, height);
+    return length(position) - radius;
+}
+
+// --- BOOLEAN FUNCTIONS ---
+
+float IntersectionFunction(float d1, float d2) {
+    return max(d1, d2);
+}
+
+float UnionFunction(float d1, float d2) {
+    return min(d1, d2);
+}
+
+float DifferenceFunction(float d1, float d2) {
+    return max(d1, -d2);
+}
+
+// --- SCENE FUNCTIONS ---
+
+void ScenePrimaryCentralSphere(float3 position, inout RayHit hit) {
+    float3 origin = float3(0.0f, 5.0f, 0.0f);
+    float radius = 1.5f;
+    float3 color = float3(0.74, 0.30, 0.20);
+
+    // sphere floating
+    origin.y += (sin(currentTime) + 1.0f) / 3.0f;
+
+    float sphereDistance = SphereDistance(position, origin, radius);
+    if (sphereDistance < hit.distance) {
+        hit.distance = sphereDistance;
+        hit.albedo = color;
+    }
+}
+
+void ScenePillar(float3 position, inout RayHit hit) {
+    float distance1 = PillarDistance(position, 3.0f, 1.2f);
+    float distance2 = SphereDistance(position, float3(0.0f, 1.5f, 0.0f), 1.5f);
+    float distance = DifferenceFunction(distance2, distance1);
+
+    if (distance < hit.distance) {
+        hit.distance = distance;
+        hit.albedo = groundColor.rgb;
+    }
+}
+
+void SceneGround(float3 position, inout RayHit hit) {
+    float groundDistance = position.y;
+    if (groundDistance < hit.distance) {
+        hit.distance = groundDistance;
+        hit.albedo = groundColor.rgb;
+    }
+}
+
+RayHit SceneFunction(float3 position) {
+    RayHit hit = CreateRayHit();
+
+    ScenePrimaryCentralSphere(position, hit);
+    // ScenePillar(position, hit);
+    SceneGround(position, hit);
+
+    return hit;
+}
+
+float3 SceneNormalFunction(float3 position) {
+    // this is just a shortcut for moving a tinu bit on each axis
+    float3 e = float3(0.0001, 0.0, 0.0);
+    float3 normal;
+    
+    // sample the scene in multiple points around the target position
+    // to calculate the normal
+    normal.x = SceneFunction(position + e.xyy).distance - SceneFunction(position - e.xyy).distance;
+    normal.y = SceneFunction(position + e.yxy).distance - SceneFunction(position - e.yxy).distance;
+    normal.z = SceneFunction(position + e.yyx).distance - SceneFunction(position - e.yyx).distance;
+    
+    return normalize(normal);
+}
+
+// --- MARCHING ---
+
+RayHit ShootRayIntoScene(Ray ray) {
+    float traveledDistance = 0.1f;
+
+    for (int i = 0; i < numberOfMarchingIterations; i++) {
+        float3 position = ray.origin + ray.direction * traveledDistance;
+
+        // check the scene for collisions
+        RayHit hit = SceneFunction(position);
+        if (hit.distance < 0.01f) {
+            // we hit something
+            hit.normal = SceneNormalFunction(position);
+            return hit;
+        }
+
+        traveledDistance += hit.distance;
+    }
+
+    return CreateRayHit();
+}
+
+float3 DrawScene(Ray ray) {
+    float3 currentColor = skyColor.rgb;
+
+    RayHit hit = ShootRayIntoScene(ray);
+
+    // check if we actually hit something
+    if (hit.distance < INFINITY) {
+        currentColor = hit.albedo;
+
+        // TODO lighting
+        currentColor *= (hit.normal.y + 1.0f) / 2.0f;
+    }
+
+    return currentColor;
+}
+
+// --- MAIN ---
+
+[numthreads(16,16,1)]
+void Main(uint3 id : SV_DispatchThreadID) {
+    uint width, height;
+    result.GetDimensions(width, height);
+
+    // transform pixel center's position to [-1, 1] range by dividing it be dimentions,
+    // id is the pixel coord based on resolution...
+    float2 uv = float2((id.xy + float2(0.5f, 0.5f)) / float2(width, height) * 2.0f - 1.0f);
+
+    // MARCH FORWARD!!!
+    Ray ray = CreateCameraRay(uv);
+    float3 sceneColor = DrawScene(ray);
+
+    result[id.xy] = float4(sceneColor, 1.0f);
+}
