@@ -1,0 +1,181 @@
+﻿#pragma kernel Main
+
+// --- TYPES ---
+
+struct Ray {
+    float3 origin;
+    float3 direction;
+};
+
+struct RayHit {
+    float3 position;
+    float distance;
+    float3 normal;
+
+    float3 albedo;
+};
+
+struct Sphere {
+    float3 position;
+    float radius;
+    float floatingOffset;
+    float floatingMagnitude;
+
+    float3 albedo;
+};
+
+// --- INPUT ---
+
+RWTexture2D<float4> result;
+float currentTime;
+
+StructuredBuffer<Sphere> worldSpheres;
+int worldSpheresCount;
+int worldSpheresStride;
+
+float4x4 cameraToWorld;
+float4x4 cameraInverseProjection;
+
+// --- CONSTANTS ---
+
+static const float PI = 3.14159265f;
+
+// --- HELPERS ---
+
+Ray CreateRay(float3 origin, float3 direction) {
+    Ray ray;
+    ray.origin = origin;
+    ray.direction = direction;
+    return ray;
+}
+
+Ray CreateCameraRay(float2 uv) {
+    // transform the camera origin to world space by multiplying a (0, 0, 0)
+    // vector with the cameraToWorld matrix
+    float3 origin = mul(cameraToWorld, float4(0.0f, 0.0f, 0.0f, 1.0f)).xyz;
+    
+    // convert the view position (uv) back to model space (I think it's model space...)
+    float3 direction = mul(cameraInverseProjection, float4(uv, 0.0f, 1.0f)).xyz;
+
+    // transform the direction from camera to world space and normalize
+    direction = mul(cameraToWorld, float4(direction, 0.0f)).xyz;
+    direction = normalize(direction);
+
+    // make a ray
+    return CreateRay(origin, direction);
+}
+
+RayHit CreateRayHit() {
+    RayHit hit;
+
+    hit.position = float3(0.0f, 0.0f, 0.0f);
+    hit.distance = 1.#INF;
+    hit.normal = float3(0.0f, 0.0f, 0.0f);
+
+    hit.albedo = float3(0.0f, 0.0f, 0.0f);
+
+    return hit;
+}
+
+// --- GEOMETRY ---
+
+void IntersectGroundPlane(Ray ray, inout RayHit bestHit) {
+    float hitDistance = -ray.origin.y / ray.direction.y;
+
+    if (hitDistance > 0 && hitDistance < bestHit.distance) {
+        bestHit.distance = hitDistance;
+        bestHit.position = ray.origin + hitDistance * ray.direction;
+        bestHit.normal = float3(0.0f, 1.0f, 0.0f);
+
+        bestHit.albedo = float3(0.05f, 0.30f, 0.35f);
+    }
+}
+
+void IntersectSphere(Ray ray, inout RayHit bestHit, Sphere sphere) {
+    float3 spherePosition = sphere.position;
+
+    if (sphere.floatingMagnitude > 0.0f) {
+        float sphereTime = currentTime + sphere.floatingOffset;
+        float floating = sin(sphereTime) * sphere.floatingMagnitude;
+
+        spherePosition.y += (floating + sphere.floatingMagnitude) / 2.0f;
+    }
+
+    // calculate distance along the ray where the sphere is intersected
+    // blindly copied but the equation is explained here: https://en.wikipedia.org/wiki/Line%E2%80%93sphere_intersection
+    float3 d = ray.origin - spherePosition;
+    float p1 = -dot(ray.direction, d);
+    float p2sqr = p1 * p1 - dot(d, d) + sphere.radius * sphere.radius;
+    if (p2sqr < 0) return;
+    float p2 = sqrt(p2sqr);
+    float hitDistance = p1 - p2 > 0 ? p1 - p2 : p1 + p2;
+
+    if (hitDistance > 0 && hitDistance < bestHit.distance) {
+        bestHit.distance = hitDistance;
+        bestHit.position = ray.origin + hitDistance * ray.direction;
+        bestHit.normal = normalize(bestHit.position - spherePosition);
+
+        bestHit.albedo = sphere.albedo;
+    }
+}
+
+// --- TRACING ---
+
+RayHit TraceRayThroughWorld(Ray ray) {
+    // start by hitting the skybox (infinite distance)
+    RayHit bestHit = CreateRayHit();
+
+    IntersectGroundPlane(ray, bestHit);
+
+    // trace all provided spheres
+    for (int i = 0; i < worldSpheresCount; i++) {
+        IntersectSphere(ray, bestHit, worldSpheres[i]);
+    }
+
+    return bestHit;
+}
+
+float3 ComputeShadingForHit(inout Ray ray, RayHit hit) {
+    if (hit.distance < 1.#INF) {
+        // offset the hit position by a small amount to make sure that we
+        // start outside of the hit object
+        float3 skyRayOrigin = hit.position + hit.normal * 0.001f;
+
+        // trace a ray to check whether the sky is visible for this pixel
+        // to draw hard shadows
+        Ray skyRay = CreateRay(skyRayOrigin, float3(0.0f, 1.0f, 0.0f));
+        RayHit skyHit = TraceRayThroughWorld(skyRay);
+
+        if (skyHit.distance < 1.#INF) {
+            // shadows are complete black
+            return float3(0.0f, 0.0f, 0.0f);
+        } else {
+            return hit.albedo;
+        }
+
+        return hit.albedo;
+    } else {
+        // skybox is black
+        return float3(0.22f, 0.60f, 0.81f);
+    }
+}
+
+// --- MAIN ---
+
+[numthreads(8,8,1)]
+void Main(uint3 id : SV_DispatchThreadID) {
+    uint width, height;
+    result.GetDimensions(width, height);
+
+    // transform pixel center's position to [-1, 1] range by dividing it be dimentions,
+    // id is the pixel coord based on resolution...
+    float2 uv = float2((id.xy + float2(0.5f, 0.5f)) / float2(width, height) * 2.0f - 1.0f);
+
+    Ray ray = CreateCameraRay(uv);
+
+    // run tracing and shading boi!
+    RayHit hit = TraceRayThroughWorld(ray);
+    float3 hitColor = ComputeShadingForHit(ray, hit);
+
+    result[id.xy] = float4(hitColor, 1);
+}
