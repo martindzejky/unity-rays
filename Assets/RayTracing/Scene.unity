@@ -198,13 +198,13 @@ Transform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 209932435}
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 5, z: -20}
+  m_LocalRotation: {x: 0.08715578, y: 0, z: 0, w: 0.9961947}
+  m_LocalPosition: {x: 0, y: 10, z: -30}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_Children: []
   m_Father: {fileID: 0}
-  m_RootOrder: 0
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_RootOrder: 1
+  m_LocalEulerAnglesHint: {x: 10, y: 0, z: 0}
 --- !u!114 &209932439
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -218,10 +218,12 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   rayTracingShader: {fileID: 7200000, guid: 820bdca4fdbbd4fe1b46f0bd3697f6c1, type: 3}
-  numberOfSpheres: 40
-  placementRadius: 15
-  sphereRadiusRange: {x: 0.3, y: 4}
-  floatingMagnitudeRange: {x: 0.5, y: 2}
+  groundColor: {r: 0.1882353, g: 0.15294118, b: 0.1764706, a: 0}
+  skyColor: {r: 0.19468473, g: 0.15513726, b: 0.36078432, a: 0}
+  numberOfSpheres: 200
+  placementRadius: 30
+  sphereRadiusRange: {x: 0.4, y: 2.5}
+  floatingMagnitudeRange: {x: 0.3, y: 1.6}
 --- !u!114 &209932440
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -237,3 +239,33 @@ MonoBehaviour:
   sensitivityX: 10
   sensitivityY: 12
   movementSpeed: 5
+--- !u!1 &1532979861
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1532979862}
+  m_Layer: 0
+  m_Name: Center
+  m_TagString: Untagged
+  m_Icon: {fileID: -964228994112308473, guid: 0000000000000000d000000000000000, type: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1532979862
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1532979861}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_RootOrder: 0
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}

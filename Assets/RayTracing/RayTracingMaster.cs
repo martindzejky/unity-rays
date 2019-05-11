@@ -20,6 +20,9 @@ public class RayTracingMaster : MonoBehaviour {
 
     public ComputeShader rayTracingShader;
 
+    public Color groundColor;
+    public Color skyColor;
+
     [Range(0, 200)]
     public uint numberOfSpheres = 100;
     [Range(1f, 100f)]
@@ -87,7 +90,10 @@ public class RayTracingMaster : MonoBehaviour {
             foreach (var other in generatedSpheres) {
                 float minDist = sphere.radius + other.radius;
 
-                if (Vector3.SqrMagnitude(sphere.position - other.position) < minDist * minDist) {
+                var spherePosition = new Vector3(sphere.position.x, 0f, sphere.position.z);
+                var otherPosition = new Vector3(other.position.x, 0f, other.position.z);
+
+                if (Vector3.SqrMagnitude(spherePosition - otherPosition) < minDist * minDist) {
                     intersecting = true;
                 }
             }
@@ -97,7 +103,7 @@ public class RayTracingMaster : MonoBehaviour {
             }
 
             // generate color
-            var albedo = Random.ColorHSV(0, 1, .7f, .8f, .4f, .9f);
+            var albedo = Random.ColorHSV(0, 1, .57f, .6f, .75f, .91f);
             sphere.albedo = new Vector3(albedo.r, albedo.g, albedo.b);
 
             generatedSpheres.Add(sphere);
@@ -145,6 +151,8 @@ public class RayTracingMaster : MonoBehaviour {
     private void SetShaderParameters() {
         rayTracingShader.SetTexture(0, "result", targetTexture);
         rayTracingShader.SetFloat("currentTime", Time.time);
+        rayTracingShader.SetVector("groundColor", groundColor);
+        rayTracingShader.SetVector("skyColor", skyColor);
 
         rayTracingShader.SetBuffer(0, "worldSpheres", worldSpheres);
         rayTracingShader.SetInt("worldSpheresCount", worldSpheresCount);

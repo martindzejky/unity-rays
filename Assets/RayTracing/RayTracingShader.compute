@@ -28,6 +28,8 @@ struct Sphere {
 
 RWTexture2D<float4> result;
 float currentTime;
+float4 groundColor;
+float4 skyColor;
 
 StructuredBuffer<Sphere> worldSpheres;
 int worldSpheresCount;
@@ -87,7 +89,7 @@ void IntersectGroundPlane(Ray ray, inout RayHit bestHit) {
         bestHit.position = ray.origin + hitDistance * ray.direction;
         bestHit.normal = float3(0.0f, 1.0f, 0.0f);
 
-        bestHit.albedo = float3(0.05f, 0.30f, 0.35f);
+        bestHit.albedo = groundColor.rgb;
     }
 }
 
@@ -147,16 +149,16 @@ float3 ComputeShadingForHit(inout Ray ray, RayHit hit) {
         RayHit skyHit = TraceRayThroughWorld(skyRay);
 
         if (skyHit.distance < 1.#INF) {
-            // shadows are complete black
-            return float3(0.0f, 0.0f, 0.0f);
+            // shadows are almost completely black
+            return hit.albedo * 0.1f;
         } else {
             return hit.albedo;
         }
 
         return hit.albedo;
     } else {
-        // skybox is black
-        return float3(0.22f, 0.60f, 0.81f);
+        // skybox 
+        return skyColor.rgb;
     }
 }
 
