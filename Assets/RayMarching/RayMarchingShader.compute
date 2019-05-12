@@ -71,6 +71,11 @@ float SphereDistance(float3 position, float3 origin, float radius) {
     return length(position - origin) - radius;
 }
 
+float BoxDistance(float3 position, float3 origin, float3 size) {
+    float3 distance = abs(position - origin) - size;
+    return length(max(distance, 0.0));
+}
+
 float PillarDistance(float3 position, float height, float radius) {
     position.y -= clamp(position.y, 0.0f, height);
     return length(position) - radius;
@@ -108,13 +113,19 @@ void ScenePrimaryCentralSphere(float3 position, inout RayHit hit) {
 }
 
 void ScenePillar(float3 position, inout RayHit hit) {
-    float distance1 = PillarDistance(position, 3.0f, 1.2f);
-    float distance2 = SphereDistance(position, float3(0.0f, 1.5f, 0.0f), 1.5f);
-    float distance = DifferenceFunction(distance2, distance1);
+    float3 boxOrigin = float3(0.0f, 0.0f, 0.0f);
+    float3 boxSize = float3(1.5f, 3.0f, 1.5f);
+    float3 sphereOrigin = float3(0.0f, 5.0f, 0.0f);
+    float sphereRadius = 3.0f;
+    float3 color = groundColor.rgb;
+
+    float distance1 = BoxDistance(position, boxOrigin, boxSize);
+    float distance2 = SphereDistance(position, sphereOrigin, sphereRadius);
+    float distance = DifferenceFunction(distance1, distance2);
 
     if (distance < hit.distance) {
         hit.distance = distance;
-        hit.albedo = groundColor.rgb;
+        hit.albedo = color;
     }
 }
 
@@ -130,7 +141,7 @@ RayHit SceneFunction(float3 position) {
     RayHit hit = CreateRayHit();
 
     ScenePrimaryCentralSphere(position, hit);
-    // ScenePillar(position, hit);
+    ScenePillar(position, hit);
     SceneGround(position, hit);
 
     return hit;
@@ -172,6 +183,20 @@ RayHit ShootRayIntoScene(Ray ray) {
     return CreateRayHit();
 }
 
+float3 CalculateLighting(Ray ray, RayHit hit) {
+    float3 currentColor = hit.albedo;
+
+    // calculate fog
+    // TODO: does not work for some reason...
+    float fogStrength = pow(E, -pow(hit.distance * 0.3f, 2.0f));
+    currentColor = lerp(skyColor.rgb, currentColor, fogStrength);
+
+    currentColor = currentColor * ((hit.normal.y + 1.0f) / 2.0f) + currentColor * ((hit.normal.x + 1.0f) / 4.0f);
+    currentColor = clamp(currentColor, 0.0f, 1.0f);
+
+    return currentColor;
+}
+
 float3 DrawScene(Ray ray) {
     float3 currentColor = skyColor.rgb;
 
@@ -179,10 +204,7 @@ float3 DrawScene(Ray ray) {
 
     // check if we actually hit something
     if (hit.distance < INFINITY) {
-        currentColor = hit.albedo;
-
-        // TODO lighting
-        currentColor *= (hit.normal.y + 1.0f) / 2.0f;
+        currentColor = CalculateLighting(ray, hit);
     }
 
     return currentColor;

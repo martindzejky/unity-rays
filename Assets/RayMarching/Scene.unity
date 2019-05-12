@@ -220,7 +220,7 @@ MonoBehaviour:
   rayMarchingShader: {fileID: 7200000, guid: 421b508a847c340a1a4eec97fa85302a, type: 3}
   groundColor: {r: 0.1882353, g: 0.15294118, b: 0.1764706, a: 0}
   skyColor: {r: 0.19607843, g: 0.15686275, b: 0.36078432, a: 0}
-  numberOfMarchingIterations: 256
+  numberOfMarchingIterations: 128
 --- !u!114 &209932440
 MonoBehaviour:
   m_ObjectHideFlags: 0
