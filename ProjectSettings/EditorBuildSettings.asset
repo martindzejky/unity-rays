@@ -4,5 +4,8 @@
 EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
-  m_Scenes: []
+  m_Scenes:
+  - enabled: 1
+    path: Assets/RayTracing/Scene.unity
+    guid: 3bb500d2d50a140e2a8c4bc51c840d23
   m_configObjects: {}
